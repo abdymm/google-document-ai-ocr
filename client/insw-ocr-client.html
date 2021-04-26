@@ -1,0 +1,280 @@
+<html>
+  <head>
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css"
+      integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
+    />
+  </head>
+  <style>
+    #result-container {
+      border-top: 1px solid silver;
+      padding-top: 16px;
+    }
+    #form-content {
+      text-align: center;
+    }
+    .key-value-item{
+      list-style: none;
+    }
+    .key-value-item:hover {
+      cursor: pointer;
+    }
+  </style>
+
+  <body class="container">
+    <div id="form-content">
+      <h3>Upload Document</h3>
+      <form id="data" method="post" enctype="multipart/form-data">
+        <input type="file" id="file" name="file" />
+        <button
+          type="submit"
+          id="upload"
+          value="UPLOAD"
+          class="btn btn-primary"
+        >
+          <i class="fa fa-upload"></i> Upload
+        </button>
+      </form>
+    </div>
+    <section id="result-container">
+      <div class="row">
+        <div class="col-md-6">
+          <h4>OCR Result</h4>
+          <hr />
+          <div id="result"></div>
+        </div>
+        <div class="col-md-6">
+          <h4>FILE</h4>
+          <hr />
+
+          <svg id="highlight-box" style="position: absolute;"></svg>
+          <div id="result-file"></div>
+        </div>
+      </div>
+    </section>
+  </body>
+  <script
+    src="https://code.jquery.com/jquery-3.5.1.min.js"
+    integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0="
+    crossorigin="anonymous"
+  ></script>
+  <script
+    src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"
+    integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo"
+    crossorigin="anonymous"
+  ></script>
+  <script
+    src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"
+    integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI"
+    crossorigin="anonymous"
+  ></script>
+  <script>
+    $(document).ready(function () {
+      $("#data").submit(function (e) {
+        var form = $("#data");
+
+        $("#upload").find("i").removeClass("fa-upload");
+        $("#upload").find("i").addClass("fa-spinner fa-spin");
+
+        // you can't pass Jquery form it has to be javascript form object
+        var formData = new FormData();
+        formData.append("file", $("#file")[0].files[0]);
+        console.log("Uploadfile..", formData);
+
+        $.ajax({
+          url: "https://inswocrapi.herokuapp.com/",
+          type: "POST",
+          data: formData,
+          success: function (data) {
+            $("#result").html("");
+            $("#result-file").html("");
+            $("#highlight-box").html("");
+            $("#upload").find("i").addClass("fa-upload");
+            $("#upload").find("i").removeClass("fa-spinner fa-spin");
+            const responseString = JSON.stringify(data);
+            const fileUrl = data.file_url;
+            const dataForm = data.data_form;
+            const dataTable = data.data_table;
+            const dataText = data.data_text;
+            const dimensions = data.raw.pages[0].dimension;
+            console.log("Dimensions", dimensions);
+            console.log("ResultDataForm", dataForm);
+
+            //set up file
+            $("#result-file").append(
+              '<object style="width:' +
+                dimensions.width +
+                "pt;height:" +
+                dimensions.height +
+                'pt" data="' +
+                fileUrl +
+                '#scrollbar=0&toolbar=0&statusbar=0&messages=0&navpanes=1" type="application/pdf"><p>This browser does not support inline PDFs. Please download the PDF to view it: <a href="'+fileUrl+'">Download PDF</a></p></object>'
+            );
+
+            //set up highlight
+            $("#highlight-box").css("width", dimensions.width + "pt");
+            $("#highlight-box").css("height", dimensions.height + "pt");
+            dataForm.forEach((itemForm,index) => {
+              const itemKey = itemForm.key;
+              const itemVal = itemForm.value;
+              const rectClassName = `rect_class_${index}`;
+              const itemClassName = `item_class_${index}`;
+              const keyX =
+                itemForm.keyBoundingPoly.normalizedVertices[0].x * 100;
+              const keyY =
+                itemForm.keyBoundingPoly.normalizedVertices[0].y * 100;
+              const keyWidth =
+                itemForm.keyBoundingPoly.normalizedVertices[1].x * 100 -
+                itemForm.keyBoundingPoly.normalizedVertices[0].x * 100;
+              const keyHeight =
+                itemForm.keyBoundingPoly.normalizedVertices[2].y * 100 -
+                itemForm.keyBoundingPoly.normalizedVertices[0].y * 100;
+
+              $("#result").append("<div class='key-value-item "+itemClassName+"' ref='"+rectClassName+"'>"+itemKey +" - "+itemVal+"</div>");
+
+              $("#highlight-box").append(
+                "<rect  ref-self='"+rectClassName+"' ref='"+itemClassName+"' class='rect-item "+rectClassName+"'" +
+                  ' x="' +
+                  keyX +
+                  '%"' +
+                  ' y="' +
+                  keyY +
+                  '%"' +
+                  ' data-key="' +
+                  itemKey +
+                  '"' +
+                  ' width="' +
+                  keyWidth +
+                  '%"' +
+                  ' height="' +
+                  keyHeight +
+                  '%"' +
+                  ' class="annotation-symbols-bounding-box"' +
+                  ' style="' +
+                  "stroke: transparent;" +
+                  "stroke-width: 2px;" +
+                  "fill-opacity: 0.2;" +
+                  "fill: rgb(217, 48, 37);" +
+                  "mix-blend-mode: darken;" +
+                  'cursor: pointer;"' +
+                  "></rect>"
+              );
+
+              const valX =
+                itemForm.valueBoundingPoly.normalizedVertices[0].x * 100;
+              const valY =
+                itemForm.valueBoundingPoly.normalizedVertices[0].y * 100;
+              const valWidth =
+                itemForm.valueBoundingPoly.normalizedVertices[1].x * 100 -
+                itemForm.valueBoundingPoly.normalizedVertices[0].x * 100;
+              const valHeight =
+                itemForm.valueBoundingPoly.normalizedVertices[2].y * 100 -
+                itemForm.valueBoundingPoly.normalizedVertices[0].y * 100;
+
+              $("#highlight-box").append(
+                "<rect  ref-self='"+rectClassName+"' ref='"+itemClassName+"' class='rect-item "+rectClassName+"'" +
+                  ' x="' +
+                  valX +
+                  '%"' +
+                  ' y="' +
+                  valY +
+                  '%"' +
+                  ' data-value="' +
+                  itemVal +
+                  '"' +
+                  ' width="' +
+                  valWidth +
+                  '%"' +
+                  ' height="' +
+                  valHeight +
+                  '%"' +
+                  ' class="annotation-symbols-bounding-box"' +
+                  ' style="' +
+                  "stroke: transparent;" +
+                  "stroke-width: 2px;" +
+                  "fill-opacity: 0.2;" +
+                  "fill: rgb(217, 48, 37);" +
+                  "mix-blend-mode: darken;" +
+                  'cursor: pointer;"' +
+                  "></rect>"
+              );
+            });
+
+
+            //set up highlight hover
+            $( "body" ).on( "mouseout", ".key-value-item",function() {
+              $(`.rect-item`).css('stroke', 'transparent');
+              $(`.rect-item`).css('fill-opacity', '0.2');
+              $(`.key-value-item`).css('background', 'transparent');
+            });
+            $( "body" ).on( "mouseout", ".rect-item",function() {
+              $(`.rect-item`).css('stroke', 'transparent');
+              $(`.rect-item`).css('fill-opacity', '0.2');
+              $(`.key-value-item`).css('background', 'transparent');
+            });
+            $( "body" ).on( "mouseover", ".key-value-item",function() {
+              const reference = $(this).attr('ref');
+              $(`.rect-item`).css('stroke', 'transparent');
+              $(`.rect-item`).css('fill-opacity', '0.2');
+              $(`.${reference}`).css('stroke', 'rgb(217, 48, 37)');
+              $(`.${reference}`).css('fill-opacity', '0.5');
+              
+
+              $(`.key-value-item`).css('background', 'transparent');
+              $(this).css('background', 'rgb(217, 48, 37, 0.4)');
+            });
+            $( "body" ).on( "mouseover", ".rect-item",function() {
+              const reference = $(this).attr('ref');
+              $(`.key-value-item`).css('background', 'transparent');
+              $(`.${reference}`).css('background', 'rgb(217, 48, 37, 0.4)');
+
+
+              $(`.rect-item`).css('stroke', 'transparent');
+              $(`.rect-item`).css('fill-opacity', '0.2');
+              $(`.${$(this).attr('ref-self')}`).css('stroke', 'rgb(217, 48, 37)');
+              $(`.${$(this).attr('ref-self')}`).css('fill-opacity', '0.5');
+            });
+
+
+
+            //set up data
+            $("#result").append("<h5>Data Form</h5>");
+            $("#result").append(
+              "<pre>" + JSON.stringify(dataForm, null, 4) + "</pre>"
+            );
+            $("#result").append("<br><h5>Data Table</h5>");
+            $("#result").append(
+              "<pre>" + JSON.stringify(dataTable, null, 4) + "</pre>"
+            );
+            $("#result").append("<br><h5>Data Text</h5>");
+            $("#result").append(
+              "<pre>" + JSON.stringify(dataText, null, 4) + "</pre>"
+            );
+
+         
+
+            setTimeout(() => {
+              $("body").html($("body").html());
+            }, 400);
+          },
+          error: function (data) {
+            console.log(data);
+            alert(data.statusText);
+            $("#upload").find("i").addClass("fa-upload");
+            $("#upload").find("i").removeClass("fa-spinner fa-spin");
+          },
+          cache: false,
+          contentType: false,
+          processData: false,
+        });
+        return false;
+      });
+    });
+  </script>
+</html>
